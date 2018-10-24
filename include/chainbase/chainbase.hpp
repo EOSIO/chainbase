@@ -47,6 +47,7 @@ namespace chainbase {
    namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
+   using boost::signals2::signal;
 
    template<typename T>
    using allocator = bip::allocator<T, bip::managed_mapped_file::segment_manager>;
@@ -72,15 +73,10 @@ namespace chainbase {
       try {
         s(std::forward<Arg>(a));
       } catch (boost::interprocess::bad_alloc& e) {
-         wlog( "bad alloc" );
+         BOOST_THROW_EXCEPTION( std::logic_error("bad alloc") );         
          throw e;
-      } catch ( controller_emit_signal_exception& e ) {
-         wlog( "${details}", ("details", e.to_detail_string()) );
-         throw e;
-      } catch ( fc::exception& e ) {
-         wlog( "${details}", ("details", e.to_detail_string()) );
       } catch ( ... ) {
-         wlog( "signal handler threw exception" );
+         BOOST_THROW_EXCEPTION( std::logic_error("signal handler threw exception") );
       }
    }
 
