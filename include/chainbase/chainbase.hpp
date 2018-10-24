@@ -19,6 +19,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
+#include <boost/signals2.hpp>
 
 #include <array>
 #include <atomic>
@@ -56,6 +57,32 @@ namespace chainbase {
    using shared_vector = std::vector<T, allocator<T> >;
 
    constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
+
+   /**
+    *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
+    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+    *  cause a node to fork.
+    *
+    *  If it is ever desirable to let a signal handler bubble an exception out of this method
+    *  a full audit of its uses needs to be undertaken.
+    *
+    */
+   template<typename Signal, typename Arg>
+   void emit( const Signal& s, Arg&& a ) {
+      try {
+        s(std::forward<Arg>(a));
+      } catch (boost::interprocess::bad_alloc& e) {
+         wlog( "bad alloc" );
+         throw e;
+      } catch ( controller_emit_signal_exception& e ) {
+         wlog( "${details}", ("details", e.to_detail_string()) );
+         throw e;
+      } catch ( fc::exception& e ) {
+         wlog( "${details}", ("details", e.to_detail_string()) );
+      } catch ( ... ) {
+         wlog( "signal handler threw exception" );
+      }
+   }
 
    struct strcmp_less
    {
@@ -191,6 +218,10 @@ namespace chainbase {
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
 
+         signal<void(const value_type&)>    applied_emplace;
+         signal<void(const value_type&)>    applied_modify;
+         signal<void(const value_type&)>    applied_remove;
+
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
 
@@ -220,6 +251,9 @@ namespace chainbase {
 
             ++_next_id;
             on_create( *insert_result.first );
+
+            emit(applied_emplace, *insert_result.first );
+            
             return *insert_result.first;
          }
 
@@ -228,11 +262,15 @@ namespace chainbase {
             on_modify( obj );
             auto ok = _indices.modify( _indices.iterator_to( obj ), m );
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
+
+            emit(applied_modify, obj );
          }
 
          void remove( const value_type& obj ) {
             on_remove( obj );
             _indices.erase( _indices.iterator_to( obj ) );
+
+            emit(applied_remove, obj );
          }
 
          template<typename CompatibleKey>
