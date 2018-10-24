@@ -13,6 +13,10 @@
 
 #include <boost/multi_index_container.hpp>
 
+#pragma push_macro("N")
+#undef N
+
+
 #include <boost/chrono.hpp>
 #include <boost/config.hpp>
 #include <boost/filesystem.hpp>
@@ -20,6 +24,8 @@
 #include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
 #include <boost/signals2.hpp>
+
+#pragma pop_macro("N")
 
 #include <array>
 #include <atomic>
