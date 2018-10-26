@@ -75,7 +75,7 @@ namespace chainbase {
     *
     */
    template<typename Signal, typename Arg>
-   void emit( const Signal& s, Arg&& a ) {
+   void emit(const Signal& s, Arg&& a ) {
       try {
         s(std::forward<Arg>(a));
       } catch (boost::interprocess::bad_alloc& e) {
@@ -219,10 +219,6 @@ namespace chainbase {
          typedef typename index_type::value_type                       value_type;
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
-
-         signal<void(const value_type&)>    applied_emplace;
-         signal<void(const value_type&)>    applied_modify;
-         signal<void(const value_type&)>    applied_remove;
 
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
@@ -541,6 +537,21 @@ namespace chainbase {
 
          const auto& stack()const { return _stack; }
 
+         template<typename Connector>
+         void connect_emplace(Connector c ) const {
+            applied_emplace.connect(std::forward<Connector>(c));
+         }
+
+         template<typename Connector>
+         void connect_modify(Connector c ) const {
+            applied_modify.connect(std::forward<Connector>(c));
+         }
+
+         template<typename Connector>
+         void connect_remove(Connector c ) const {
+            applied_remove.connect(std::forward<Connector>(c));
+         }
+
       private:
          bool enabled()const { return _stack.size(); }
 
@@ -587,6 +598,10 @@ namespace chainbase {
 
             head.new_ids.insert( v.id );
          }
+
+         signal<void(const value_type&)>    applied_emplace;
+         signal<void(const value_type&)>    applied_modify;
+         signal<void(const value_type&)>    applied_remove;
 
          boost::interprocess::deque< undo_state_type, allocator<undo_state_type> > _stack;
 
