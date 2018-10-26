@@ -539,17 +539,17 @@ namespace chainbase {
 
          template<typename Connector>
          void connect_emplace(Connector c ) const {
-            applied_emplace.connect(std::forward<Connector>(c));
+            applied_emplace.connect(c);
          }
 
          template<typename Connector>
          void connect_modify(Connector c ) const {
-            applied_modify.connect(std::forward<Connector>(c));
+            applied_modify.connect(c);
          }
 
          template<typename Connector>
          void connect_remove(Connector c ) const {
-            applied_remove.connect(std::forward<Connector>(c));
+            applied_remove.connect(c);
          }
 
       private:
