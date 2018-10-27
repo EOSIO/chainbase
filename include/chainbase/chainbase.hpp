@@ -13,16 +13,16 @@
 
 #include <boost/multi_index_container.hpp>
 
-#pragma push_macro("N")
-#undef N
-
-
 #include <boost/chrono.hpp>
 #include <boost/config.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
+
+#pragma push_macro("N")
+#undef N
+
 #include <boost/signals2.hpp>
 
 #pragma pop_macro("N")
@@ -75,9 +75,9 @@ namespace chainbase {
     *
     */
    template<typename Signal, typename Arg>
-   void emit(const Signal& s, Arg&& a ) {
+   void emit(const Signal s, Arg&& a ) {
       try {
-        s(std::forward<Arg>(a));
+        if(!s.empty()) s(std::forward<Arg>(a));
       } catch (boost::interprocess::bad_alloc& e) {
          BOOST_THROW_EXCEPTION( std::logic_error("bad alloc") );         
          throw e;
@@ -219,6 +219,7 @@ namespace chainbase {
          typedef typename index_type::value_type                       value_type;
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
+         typedef boost::function<void (const value_type&)>               signal_type;
 
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
@@ -535,22 +536,9 @@ namespace chainbase {
             return {begin, end};
          }
 
-         const auto& stack()const { return _stack; }
-
-         template<typename Connector>
-         void connect_emplace(Connector c ) const {
-            applied_emplace.connect(c);
-         }
-
-         template<typename Connector>
-         void connect_modify(Connector c ) const {
-            applied_modify.connect(c);
-         }
-
-         template<typename Connector>
-         void connect_remove(Connector c ) const {
-            applied_remove.connect(c);
-         }
+         mutable signal_type   applied_emplace;
+         mutable signal_type   applied_modify;
+         mutable signal_type   applied_remove;
 
       private:
          bool enabled()const { return _stack.size(); }
@@ -598,10 +586,6 @@ namespace chainbase {
 
             head.new_ids.insert( v.id );
          }
-
-         signal<void(const value_type&)>    applied_emplace;
-         signal<void(const value_type&)>    applied_modify;
-         signal<void(const value_type&)>    applied_remove;
 
          boost::interprocess::deque< undo_state_type, allocator<undo_state_type> > _stack;
 
