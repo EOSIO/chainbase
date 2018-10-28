@@ -267,9 +267,10 @@ namespace chainbase {
 
          void remove( const value_type& obj ) {
             on_remove( obj );
-            _indices.erase( _indices.iterator_to( obj ) );
 
             emit(applied_remove, obj );
+            
+            _indices.erase( _indices.iterator_to( obj ) );
          }
 
          template<typename CompatibleKey>
