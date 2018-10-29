@@ -376,6 +376,8 @@ namespace chainbase {
 
             _stack.pop_back();
             --_revision;
+            
+            emit(applied_undo, _revision );
          }
 
          /**
@@ -485,6 +487,8 @@ namespace chainbase {
 
             _stack.pop_back();
             --_revision;
+            
+            emit(applied_squash, _revision );
          }
 
          /**
@@ -496,6 +500,8 @@ namespace chainbase {
             {
                _stack.pop_front();
             }
+            
+            emit(applied_commit, revision );
          }
 
          /**
@@ -540,6 +546,9 @@ namespace chainbase {
          mutable signal_type   applied_emplace;
          mutable signal_type   applied_modify;
          mutable signal_type   applied_remove;
+         mutable signal_type   applied_undo;
+         mutable signal_type   applied_squash;
+         mutable signal_type   applied_commit;
 
       private:
          bool enabled()const { return _stack.size(); }
