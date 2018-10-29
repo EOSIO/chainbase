@@ -20,13 +20,6 @@
 #include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
 
-#pragma push_macro("N")
-#undef N
-
-#include <boost/signals2.hpp>
-
-#pragma pop_macro("N")
-
 #include <array>
 #include <atomic>
 #include <fstream>
