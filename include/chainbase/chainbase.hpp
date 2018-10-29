@@ -46,7 +46,6 @@ namespace chainbase {
    namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
-   using boost::signals2::signal;
 
    template<typename T>
    using allocator = bip::allocator<T, bip::managed_mapped_file::segment_manager>;
