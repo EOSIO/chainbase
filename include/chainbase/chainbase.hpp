@@ -219,7 +219,8 @@ namespace chainbase {
          typedef typename index_type::value_type                       value_type;
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
-         typedef boost::function<void (const value_type&)>               signal_type;
+         typedef boost::function<void (const value_type&)>             signal_op_type;
+         typedef boost::function<void (const int64_t)>                 signal_rev_type;
 
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
@@ -543,12 +544,12 @@ namespace chainbase {
             return {begin, end};
          }
 
-         mutable signal_type   applied_emplace;
-         mutable signal_type   applied_modify;
-         mutable signal_type   applied_remove;
-         mutable signal_type   applied_undo;
-         mutable signal_type   applied_squash;
-         mutable signal_type   applied_commit;
+         mutable signal_op_type    applied_emplace;
+         mutable signal_op_type    applied_modify;
+         mutable signal_op_type    applied_remove;
+         mutable signal_rev_type   applied_undo;
+         mutable signal_rev_type   applied_squash;
+         mutable signal_rev_type   applied_commit;
 
       private:
          bool enabled()const { return _stack.size(); }
