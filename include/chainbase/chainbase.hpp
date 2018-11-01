@@ -347,30 +347,40 @@ namespace chainbase {
          void undo() {
             if( !enabled() ) return;
 
+            emit(applied_undo, _revision );
+
             const auto& head = _stack.back();
 
             for( auto& item : head.old_values ) {
-               auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
+               emit(applied_modify, item.second);
+               
+               auto ok = _indices.modify(_indices.find( item.second.id ), [&]( value_type& v ) {
                   v = std::move( item.second );
                });
+
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
             }
 
             for( auto id : head.new_ids )
             {
-               _indices.erase( _indices.find( id ) );
+               const auto& itr = _indices.find( id );
+               
+               if( itr != _indices.end())
+                  emit(applied_remove, *itr);
+
+               _indices.erase( itr );
             }
             _next_id = head.old_next_id;
 
             for( auto& item : head.removed_values ) {
+               emit(applied_emplace, item.second);
+
                bool ok = _indices.emplace( std::move( item.second ) ).second;
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not restore object, most likely a uniqueness constraint was violated" ) );
             }
 
             _stack.pop_back();
             --_revision;
-            
-            emit(applied_undo, _revision );
          }
 
          /**
@@ -480,8 +490,6 @@ namespace chainbase {
 
             _stack.pop_back();
             --_revision;
-            
-            emit(applied_squash, _revision );
          }
 
          /**
@@ -540,7 +548,6 @@ namespace chainbase {
          mutable signal_op_type    applied_modify;
          mutable signal_op_type    applied_remove;
          mutable signal_rev_type   applied_undo;
-         mutable signal_rev_type   applied_squash;
          mutable signal_rev_type   applied_commit;
 
       private:
