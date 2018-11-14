@@ -20,6 +20,13 @@
 #include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
 
+#pragma push_macro("N")
+#undef N
+
+#include <boost/signals2.hpp>
+
+#pragma pop_macro("N")
+
 #include <array>
 #include <atomic>
 #include <fstream>
@@ -46,6 +53,7 @@ namespace chainbase {
    namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
+   using boost::signals2::signal;
 
    template<typename T>
    using allocator = bip::allocator<T, bip::managed_mapped_file::segment_manager>;
@@ -58,23 +66,29 @@ namespace chainbase {
    constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
 
    /**
-    *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
-    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
-    *  cause a node to fork.
-    *
-    *  If it is ever desirable to let a signal handler bubble an exception out of this method
-    *  a full audit of its uses needs to be undertaken.
-    *
-    */
-   template<typename Signal, typename Arg>
-   void emit(const Signal s, Arg&& a ) {
-      try {
-        if(!s.empty()) s(std::forward<Arg>(a));
-      } catch (boost::interprocess::bad_alloc& e) {
-         BOOST_THROW_EXCEPTION( std::logic_error("bad alloc") );         
+       *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
+       *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+       *  cause a node to fork.
+       *
+       *  If it is ever desirable to let a signal handler bubble an exception out of this method
+       *  a full audit of its uses needs to be undertaken.
+       *
+       */
+   template <typename Signal, typename Arg>
+   void emit(const Signal &s, Arg &&a)
+   {
+      try
+      {
+         s(std::forward<Arg>(a));
+      }
+      catch (boost::interprocess::bad_alloc &e)
+      {
+         std::cerr << "bad alloc";
          throw e;
-      } catch ( ... ) {
-         BOOST_THROW_EXCEPTION( std::logic_error("signal handler threw exception") );
+      }
+      catch (...)
+      {
+         std::cerr << "signal handler threw exception";
       }
    }
 
@@ -211,8 +225,8 @@ namespace chainbase {
          typedef typename index_type::value_type                       value_type;
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
-         typedef boost::function<void (const value_type&)>             signal_op_type;
-         typedef boost::function<void (const int64_t)>                 signal_rev_type;
+         typedef signal<void(const value_type &)>                      signal_op_type;
+         typedef signal<void(const int64_t)>                           signal_rev_type;
 
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
@@ -542,10 +556,11 @@ namespace chainbase {
             return {begin, end};
          }
 
-         mutable signal_op_type    applied_emplace;
-         mutable signal_op_type    applied_modify;
-         mutable signal_op_type    applied_remove;
-         mutable signal_rev_type   applied_undo;
+         const auto &stack() const { return _stack; }
+         mutable signal_op_type applied_emplace;
+         mutable signal_op_type applied_modify;
+         mutable signal_op_type applied_remove;
+         mutable signal_rev_type applied_undo;
 
       private:
          bool enabled()const { return _stack.size(); }
