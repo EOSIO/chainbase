@@ -557,6 +557,7 @@ namespace chainbase {
          }
 
          const auto &stack() const { return _stack; }
+
          mutable signal_op_type applied_emplace;
          mutable signal_op_type applied_modify;
          mutable signal_op_type applied_remove;
