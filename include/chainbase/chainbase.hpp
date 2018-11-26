@@ -65,33 +65,6 @@ namespace chainbase {
 
    constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
 
-   /**
-       *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
-       *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
-       *  cause a node to fork.
-       *
-       *  If it is ever desirable to let a signal handler bubble an exception out of this method
-       *  a full audit of its uses needs to be undertaken.
-       *
-       */
-   template <typename Signal, typename Arg>
-   void emit(const Signal &s, Arg &&a)
-   {
-      try
-      {
-         s(std::forward<Arg>(a));
-      }
-      catch (boost::interprocess::bad_alloc &e)
-      {
-         std::cerr << "bad alloc";
-         throw e;
-      }
-      catch (...)
-      {
-         std::cerr << "signal handler threw exception";
-      }
-   }
-
    struct strcmp_less
    {
       bool operator()( const shared_string& a, const shared_string& b )const
@@ -554,6 +527,33 @@ namespace chainbase {
             }
 
             return {begin, end};
+         }
+
+         /**
+          *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
+          *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+          *  cause a node to fork.
+          *
+          *  If it is ever desirable to let a signal handler bubble an exception out of this method
+          *  a full audit of its uses needs to be undertaken.
+          *
+          */
+         template <typename Signal, typename Arg>
+         void emit(const Signal &s, Arg &&a)
+         {
+            try
+            {
+               s(std::forward<Arg>(a));
+            }
+            catch (boost::interprocess::bad_alloc &e)
+            {
+               std::cerr << "bad alloc";
+               throw e;
+            }
+            catch (...)
+            {
+               std::cerr << "signal handler threw exception";
+            }
          }
 
          const auto &stack() const { return _stack; }
