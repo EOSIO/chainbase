@@ -224,14 +224,21 @@ namespace chainbase {
          }
 
          template<typename Modifier>
-         void modify( const value_type& obj, Modifier&& m, bool move_old_value = false) {
-            on_modify( obj, move_old_value );
+         void modify( const value_type& obj, Modifier&& m ) {
+            on_modify( obj );
             auto ok = _indices.modify( _indices.iterator_to( obj ), m );
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
          }
 
-         void remove( const value_type& obj, bool move_old_value = false ) {
-            on_remove( obj, move_old_value );
+         template<typename Modifier>
+         void replace( const value_type& obj, Modifier&& m ) {
+            on_replace( obj );
+            auto ok = _indices.modify( _indices.iterator_to( obj ), m );
+            if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not replace object, most likely a uniqueness constraint was violated" ) );
+         }
+
+         void remove( const value_type& obj ) {
+            on_remove( obj );
             _indices.erase( _indices.iterator_to( obj ) );
          }
 
@@ -320,7 +327,7 @@ namespace chainbase {
 
             for( auto& item : head.old_values ) {
                auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
-                  v = std::move( item.second );
+                  v = std::move( const_cast<std::remove_const_t<decltype(item.second)>& >(item.second) );
                });
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
             }
@@ -332,7 +339,7 @@ namespace chainbase {
             _next_id = head.old_next_id;
 
             for( auto& item : head.removed_values ) {
-               bool ok = _indices.emplace( std::move( item.second ) ).second;
+               bool ok = _indices.emplace( std::move(const_cast<std::remove_const_t<decltype(item.second)>& >(item.second) ) ).second;
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not restore object, most likely a uniqueness constraint was violated" ) );
             }
 
@@ -400,7 +407,7 @@ namespace chainbase {
 
             // We can only be outside type A/AB (the nop path) if B is not nop, so it suffices to iterate through B's three containers.
 
-            for( const auto& item : state.old_values )
+            for( auto& item : state.old_values )
             {
                if( prev_state.new_ids.find( item.second.id ) != prev_state.new_ids.end() )
                {
@@ -504,7 +511,7 @@ namespace chainbase {
       private:
          bool enabled()const { return _stack.size(); }
 
-         void on_modify( const value_type& v, bool move_old_value ) {
+         void on_modify( const value_type& v ) {
             if( !enabled() ) return;
 
             auto& head = _stack.back();
@@ -516,14 +523,25 @@ namespace chainbase {
             if( itr != head.old_values.end() )
                return;
 
-            if (move_old_value) {
-               head.old_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
-            } else {
-               head.old_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
-            }
+            head.old_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
          }
 
-         void on_remove( const value_type& v, bool move_old_value ) {
+         void on_replace( const value_type& v ) {
+            if( !enabled() ) return;
+
+            auto& head = _stack.back();
+
+            if( head.new_ids.find( v.id ) != head.new_ids.end() )
+               return;
+
+            auto itr = head.old_values.find( v.id );
+            if( itr != head.old_values.end() )
+               return;
+
+            head.old_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
+         }
+
+         void on_remove( const value_type& v ) {
             if( !enabled() ) return;
 
             auto& head = _stack.back();
@@ -542,11 +560,7 @@ namespace chainbase {
             if( head.removed_values.count( v.id ) )
                return;
 
-            if (move_old_value) {
-               head.removed_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
-            } else {
-               head.removed_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
-            }
+            head.removed_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
          }
 
          void on_create( const value_type& v ) {
@@ -941,19 +955,27 @@ namespace chainbase {
          }
 
          template<typename ObjectType, typename Modifier>
-         void modify( const ObjectType& obj, Modifier&& m, bool move_old_value = false )
+         void modify( const ObjectType& obj, Modifier&& m)
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
-             get_mutable_index<index_type>().modify( obj, m, move_old_value);
+             get_mutable_index<index_type>().modify( obj, m );
+         }
+
+         template<typename ObjectType, typename Modifier>
+         void replace( const ObjectType& obj, Modifier&& m)
+         {
+             CHAINBASE_REQUIRE_WRITE_LOCK("replace", ObjectType);
+             typedef typename get_index_type<ObjectType>::type index_type;
+             get_mutable_index<index_type>().replace( obj, m );
          }
 
          template<typename ObjectType>
-         void remove( const ObjectType& obj, bool move_old_value = false )
+         void remove( const ObjectType& obj )
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("remove", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
-             return get_mutable_index<index_type>().remove( obj, move_old_value );
+             return get_mutable_index<index_type>().remove( obj );
          }
 
          template<typename ObjectType, typename Constructor>
