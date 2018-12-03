@@ -230,10 +230,15 @@ namespace chainbase {
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
          }
 
-         template<typename Modifier>
-         void replace( const value_type& obj, Modifier&& m ) {
+         template<typename Replacer>
+         void replace( const value_type& obj, Replacer&& r ) {
+            auto id = obj.id;
+            value_type temp(r, _indices.get_allocator());
             on_replace( obj );
-            auto ok = _indices.modify( _indices.iterator_to( obj ), m );
+            auto ok = _indices.modify( _indices.iterator_to( obj ), [&]( value_type& v ) {
+               v = std::move(temp);
+               v.id = id;
+            });
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not replace object, most likely a uniqueness constraint was violated" ) );
          }
 
@@ -962,12 +967,12 @@ namespace chainbase {
              get_mutable_index<index_type>().modify( obj, m );
          }
 
-         template<typename ObjectType, typename Modifier>
-         void replace( const ObjectType& obj, Modifier&& m)
+         template<typename ObjectType, typename Replacer>
+         void replace( const ObjectType& obj, Replacer&& r)
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("replace", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
-             get_mutable_index<index_type>().replace( obj, m );
+             get_mutable_index<index_type>().replace( obj, r );
          }
 
          template<typename ObjectType>
