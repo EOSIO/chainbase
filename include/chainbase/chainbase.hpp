@@ -318,18 +318,18 @@ namespace chainbase {
 
             const auto& head = _stack.back();
 
+            for( auto id : head.new_ids )
+            {
+               _indices.erase( _indices.find( id ) );
+            }
+            _next_id = head.old_next_id;
+
             for( auto& item : head.old_values ) {
                auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
                   v = std::move( item.second );
                });
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
             }
-
-            for( auto id : head.new_ids )
-            {
-               _indices.erase( _indices.find( id ) );
-            }
-            _next_id = head.old_next_id;
 
             for( auto& item : head.removed_values ) {
                bool ok = _indices.emplace( std::move( item.second ) ).second;
