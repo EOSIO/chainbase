@@ -227,6 +227,18 @@ namespace chainbase {
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
          }
 
+         template<typename Replacer>
+         void replace( const value_type& obj, Replacer&& r ) {
+            auto id = obj.id;
+            value_type temp(r, _indices.get_allocator());
+            on_replace( obj );
+            auto ok = _indices.modify( _indices.iterator_to( obj ), [&]( value_type& v ) {
+               v = std::move(temp);
+               v.id = id;
+            });
+            if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not replace object, most likely a uniqueness constraint was violated" ) );
+         }
+
          void remove( const value_type& obj ) {
             on_remove( obj );
             _indices.erase( _indices.iterator_to( obj ) );
@@ -317,7 +329,7 @@ namespace chainbase {
 
             for( auto& item : head.old_values ) {
                auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
-                  v = std::move( item.second );
+                  v = std::move( const_cast<std::remove_const_t<decltype(item.second)>& >(item.second) );
                });
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
             }
@@ -329,7 +341,7 @@ namespace chainbase {
             _next_id = head.old_next_id;
 
             for( auto& item : head.removed_values ) {
-               bool ok = _indices.emplace( std::move( item.second ) ).second;
+               bool ok = _indices.emplace( std::move(const_cast<std::remove_const_t<decltype(item.second)>& >(item.second) ) ).second;
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not restore object, most likely a uniqueness constraint was violated" ) );
             }
 
@@ -397,7 +409,7 @@ namespace chainbase {
 
             // We can only be outside type A/AB (the nop path) if B is not nop, so it suffices to iterate through B's three containers.
 
-            for( const auto& item : state.old_values )
+            for( auto& item : state.old_values )
             {
                if( prev_state.new_ids.find( item.second.id ) != prev_state.new_ids.end() )
                {
@@ -516,6 +528,21 @@ namespace chainbase {
             head.old_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
          }
 
+         void on_replace( const value_type& v ) {
+            if( !enabled() ) return;
+
+            auto& head = _stack.back();
+
+            if( head.new_ids.find( v.id ) != head.new_ids.end() )
+               return;
+
+            auto itr = head.old_values.find( v.id );
+            if( itr != head.old_values.end() )
+               return;
+
+            head.old_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
+         }
+
          void on_remove( const value_type& v ) {
             if( !enabled() ) return;
 
@@ -535,7 +562,7 @@ namespace chainbase {
             if( head.removed_values.count( v.id ) )
                return;
 
-            head.removed_values.emplace( std::pair< typename value_type::id_type, const value_type& >( v.id, v ) );
+            head.removed_values.emplace( std::pair< typename value_type::id_type, value_type >( v.id, std::move(const_cast<value_type&>(v))));
          }
 
          void on_create( const value_type& v ) {
@@ -936,11 +963,19 @@ namespace chainbase {
          }
 
          template<typename ObjectType, typename Modifier>
-         void modify( const ObjectType& obj, Modifier&& m )
+         void modify( const ObjectType& obj, Modifier&& m)
          {
              CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              get_mutable_index<index_type>().modify( obj, m );
+         }
+
+         template<typename ObjectType, typename Replacer>
+         void replace( const ObjectType& obj, Replacer&& r)
+         {
+             CHAINBASE_REQUIRE_WRITE_LOCK("replace", ObjectType);
+             typedef typename get_index_type<ObjectType>::type index_type;
+             get_mutable_index<index_type>().replace( obj, r );
          }
 
          template<typename ObjectType>
