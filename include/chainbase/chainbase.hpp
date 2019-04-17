@@ -18,6 +18,13 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/throw_exception.hpp>
 
+#pragma push_macro("N")
+#undef N
+
+#include <boost/signals2.hpp>
+
+#pragma pop_macro("N")
+
 #include <array>
 #include <atomic>
 #include <fstream>
@@ -46,6 +53,7 @@ namespace chainbase {
    namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
+   using boost::signals2::signal;
 
    template<typename T>
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
@@ -187,6 +195,8 @@ namespace chainbase {
          typedef typename index_type::value_type                       value_type;
          typedef bip::allocator< generic_index, segment_manager_type > allocator_type;
          typedef undo_state< value_type >                              undo_state_type;
+         typedef signal<void(const value_type &)>                      signal_op_type;
+         typedef signal<void(const int64_t)>                           signal_rev_type;
 
          generic_index( allocator<value_type> a )
          :_stack(a),_indices( a ),_size_of_value_type( sizeof(typename MultiIndexType::node_type) ),_size_of_this(sizeof(*this)){}
@@ -217,6 +227,9 @@ namespace chainbase {
 
             ++_next_id;
             on_create( *insert_result.first );
+
+            emit(applied_emplace, *insert_result.first );
+            
             return *insert_result.first;
          }
 
@@ -225,10 +238,15 @@ namespace chainbase {
             on_modify( obj );
             auto ok = _indices.modify( _indices.iterator_to( obj ), m );
             if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
+
+            emit(applied_modify, obj );
          }
 
          void remove( const value_type& obj ) {
             on_remove( obj );
+
+            emit(applied_remove, obj );
+            
             _indices.erase( _indices.iterator_to( obj ) );
          }
 
@@ -313,22 +331,34 @@ namespace chainbase {
          void undo() {
             if( !enabled() ) return;
 
+            emit(applied_undo, _revision );
+
             const auto& head = _stack.back();
 
             for( auto& item : head.old_values ) {
-               auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
+               emit(applied_modify, item.second);
+               
+               auto ok = _indices.modify(_indices.find( item.second.id ), [&]( value_type& v ) {
                   v = std::move( item.second );
                });
+
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
             }
 
             for( auto id : head.new_ids )
             {
-               _indices.erase( _indices.find( id ) );
+               const auto& itr = _indices.find( id );
+               
+               if( itr != _indices.end())
+                  emit(applied_remove, *itr);
+
+               _indices.erase( itr );
             }
             _next_id = head.old_next_id;
 
             for( auto& item : head.removed_values ) {
+               emit(applied_emplace, item.second);
+
                bool ok = _indices.emplace( std::move( item.second ) ).second;
                if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not restore object, most likely a uniqueness constraint was violated" ) );
             }
@@ -496,7 +526,39 @@ namespace chainbase {
             return {begin, end};
          }
 
-         const auto& stack()const { return _stack; }
+         /**
+          *  Plugins / observers listening to signals emited (such as accepted_transaction) might trigger
+          *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+          *  cause a node to fork.
+          *
+          *  If it is ever desirable to let a signal handler bubble an exception out of this method
+          *  a full audit of its uses needs to be undertaken.
+          *
+          */
+         template <typename Signal, typename Arg>
+         void emit(const Signal &s, Arg &&a)
+         {
+            try
+            {
+               s(std::forward<Arg>(a));
+            }
+            catch (boost::interprocess::bad_alloc &e)
+            {
+               std::cerr << "bad alloc";
+               throw e;
+            }
+            catch (...)
+            {
+               std::cerr << "signal handler threw exception";
+            }
+         }
+
+         const auto &stack() const { return _stack; }
+
+         mutable signal_op_type applied_emplace;
+         mutable signal_op_type applied_modify;
+         mutable signal_op_type applied_remove;
+         mutable signal_rev_type applied_undo;
 
       private:
          bool enabled()const { return _stack.size(); }
