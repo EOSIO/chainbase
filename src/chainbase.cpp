@@ -104,7 +104,7 @@ namespace chainbase {
                       << "\n Boost Version: " << host_env.boost_version << " vs " << env.first->boost_version
                       << std::endl;
 
-            BOOST_THROW_EXCEPTION( std::runtime_error( "database created by a different compiler, build, boost version, or operating system" ) );
+            //BOOST_THROW_EXCEPTION( std::runtime_error( "database created by a different compiler, build, boost version, or operating system" ) );
          }
       } else {
          _segment.reset( new bip::managed_mapped_file( bip::create_only,
