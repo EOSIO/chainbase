@@ -30,22 +30,22 @@ typedef multi_index_container<
   book,
   indexed_by<
      ordered_unique< member<book,book::id_type,&book::id> >,
-     ordered_non_unique< BOOST_MULTI_INDEX_MEMBER(book,int,a) >,
-     ordered_non_unique< BOOST_MULTI_INDEX_MEMBER(book,int,b) >
+     ordered_unique< BOOST_MULTI_INDEX_MEMBER(book,int,a) >,
+     ordered_unique< BOOST_MULTI_INDEX_MEMBER(book,int,b) >
   >,
-  chainbase::allocator<book>
+  chainbase::node_allocator<book>
 > book_index;
 
 CHAINBASE_SET_INDEX_TYPE( book, book_index )
 
 
 BOOST_AUTO_TEST_CASE( open_and_create ) {
-   boost::filesystem::path temp = boost::filesystem::unique_path();
+   boost::filesystem::path temp = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
    try {
-      std::cerr << temp.native() << " \n";
+      std::cerr << temp << " \n";
 
       chainbase::database db(temp, database::read_write, 1024*1024*8);
-      chainbase::database db2(temp); /// open an already created db
+      chainbase::database db2(temp, database::read_only, 0, true); /// open an already created db
       BOOST_CHECK_THROW( db2.add_index< book_index >(), std::runtime_error ); /// index does not exist in read only database
 
       db.add_index< book_index >();
@@ -129,6 +129,7 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
       bfs::remove_all( temp );
       throw;
    }
+   bfs::remove_all( temp );
 }
 
 // BOOST_AUTO_TEST_SUITE_END()

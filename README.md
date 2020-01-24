@@ -1,7 +1,7 @@
 # ChainBase - a fast version controlled, transactional database
 
   ChainBase is designed to meet the demanding requirments of blockchain applications, but is suitable for use
-  in any application that requires a robust transactional database with the ability have near-infinate levels of undo
+  in any application that requires a robust transactional database with the ability have near-infinite levels of undo
   history.
 
   While chainbase was designed for blockchain applications, it is suitable for any program that needs to
@@ -15,7 +15,7 @@
 
 ## Dependencies
 
-  - C++14
+  - C++17
   - [Boost](http://www.boost.org/)
   - CMake Build Process
   - Supports Linux, Mac OS X  (no Windows Support)
