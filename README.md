@@ -39,7 +39,7 @@ struct book : public chainbase::object<book_table, book> {
      */
    CHAINBASE_DEFAULT_CONSTRUCTOR( book )
    
-   id_type          id; ///< this manditory member is a primary key
+   id_type          id; ///< this mandatory member is a primary key
    int pages        = 0;
    int publish_date = 0;
 };
@@ -50,7 +50,7 @@ struct by_date;
 
 /**
  * This is a relatively standard boost multi_index_container definition that has three 
- * requirements to be used withn a chainbase database:
+ * requirements to be used within a chainbase database:
  *   - it must use chainbase::allocator<T> 
  *   - the first index must be on the primary key (id) and must be unique (hashed or ordered)
  */
@@ -66,7 +66,7 @@ typedef multi_index_container<
 
 /**
     This simple program will open database_dir and add two new books every time
-    it is run and then print out all of the books in the database.
+    it runs and then print out all of the books in the database.
  */
 int main( int argc, char** argv ) {
    chainbase::database db;
