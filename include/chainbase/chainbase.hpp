@@ -174,7 +174,7 @@ namespace chainbase {
    };
 
    /**
-    *  The value_type stored in the multiindex container must have a integer field with the name 'id'.  This will
+    *  The value_type stored in the multiindex container must have an integer field with the name 'id'.This will
     *  be the primary key and it will be assigned and managed by generic_index.
     *
     *  Additionally, the constructor for value_type must take an allocator
@@ -930,10 +930,9 @@ namespace chainbase {
          }
 
       private:
-         unique_ptr<bip::managed_mapped_file>                        _segment;
-         unique_ptr<bip::managed_mapped_file>                        _meta;
+         unique_ptr<bip::managed_mapped_file>                        _segment,_meta;
          read_write_mutex_manager*                                   _rw_manager = nullptr;
-         bool                                                        _read_only = false;
+         bool                                                        _read_only = false,_enable_require_locking = false;
          bip::file_lock                                              _flock;
 
          /**
@@ -948,9 +947,7 @@ namespace chainbase {
 
          bfs::path                                                   _data_dir;
 
-         int32_t                                                     _read_lock_count = 0;
-         int32_t                                                     _write_lock_count = 0;
-         bool                                                        _enable_require_locking = false;
+         int32_t                                                     _read_lock_count = 0,_write_lock_count = 0;
    };
 
    template<typename Object, typename... Args>
